@@ -1,6 +1,8 @@
-﻿using EmprestimoLivros.Data;
+﻿using ClosedXML.Excel;
+using EmprestimoLivros.Data;
 using EmprestimoLivros.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.Data;
 
 namespace EmprestimoLivros.Controllers
 {
@@ -59,6 +61,45 @@ namespace EmprestimoLivros.Controllers
             return View(emprestimo);
         }
 
+        [HttpGet]
+
+        public IActionResult Exportar()
+        {
+            var dados = GetDados();
+
+            using (XLWorkbook workbook = new XLWorkbook())
+            {
+                workbook.AddWorksheet(dados, "Dados Empréstimos");
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    workbook.SaveAs(ms);
+                    return File(ms.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Emprestimos.xlsx");
+                }
+            }
+        }
+
+        private DataTable GetDados()
+        {
+            DataTable dataTable = new DataTable();
+
+            dataTable.TableName = "Dados emprestimos";
+            dataTable.Columns.Add("Recebedor", typeof(string));
+            dataTable.Columns.Add("Fornecedor", typeof(string));
+            dataTable.Columns.Add("Livro", typeof(string));
+            dataTable.Columns.Add("DataUltimaAtualizacao", typeof(DateTime));
+
+            var dados = _db.Emprestimos.ToList();
+
+            if(dados.Count > 0)
+            {
+                dados.ForEach(item =>
+                {
+                    dataTable.Rows.Add(item.Recebedor, item.Fornecedor, item.Livro, item.DataUltimaAtualizacao);
+                });
+            }
+            return dataTable;
+        }
+
 
         [HttpPost]
         public IActionResult Cadastrar(EmprestimosModel emprestimo)
@@ -80,13 +121,20 @@ namespace EmprestimoLivros.Controllers
         {
             if (ModelState.IsValid)
             {
-                _db.Emprestimos.Update(emprestimo);
+                var emprestimoDB = _db.Emprestimos.Find(emprestimo.Id);
+
+                emprestimoDB.Fornecedor = emprestimo.Fornecedor;
+                emprestimoDB.Recebedor = emprestimo.Recebedor;
+                emprestimoDB.Livro = emprestimo.Livro;
+
+                _db.Emprestimos.Update(emprestimoDB);
                 _db.SaveChanges();
 
                 TempData["MensagemSucesso"] = "Emprestimo atualizado com sucesso!";
 
                 return RedirectToAction("Index");
             }
+            TempData["MensagemErro"] = "Erro ao atualizar emprestimo!";
             return View(emprestimo);
         }
 
